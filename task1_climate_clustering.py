@@ -99,7 +99,7 @@ print(f"    Std values after scaling (should be ~1): {df_scaled.std().mean():.6f
 print("\n2.5 Dimensionality Reduction with PCA...")
 print("    Reducing 18 dimensions to 2 for visualization")
 pca = PCA(n_components=2)
-df_pca = pca.fit_transform(df_scaled)
+df_pca = pca.fit_transform(df_scaled.values)
 print(f"    Explained variance ratio: {pca.explained_variance_ratio_}")
 print(f"    Total variance explained: {sum(pca.explained_variance_ratio_):.2%}")
 
