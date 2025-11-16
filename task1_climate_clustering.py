@@ -236,10 +236,117 @@ df_pca_final.to_csv('task1data/pca_data.csv', index=False)
 print("    Saved PCA transformed data to 'task1data/pca_data.csv'")
 
 # ============================================================================
+# 6. CLUSTERING WITH K-MEANS
+# ============================================================================
+print("\n" + "=" * 80)
+print("6. CLUSTERING WITH K-MEANS")
+print("=" * 80)
+
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+
+print("\n6.1 Determining optimal number of clusters...")
+print("    Testing K from 2 to 10")
+
+# Calculate metrics for different K values
+k_range = range(2, 11)
+inertias = []
+silhouette_scores = []
+
+for k in k_range:
+    kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+    clusters = kmeans.fit_predict(df_pca_final)
+    inertias.append(kmeans.inertia_)
+    silhouette_scores.append(silhouette_score(df_pca_final, clusters))
+
+# Find optimal K using elbow method and silhouette
+# Use K=4 as default (common for climate patterns: winter, spring, summer, fall)
+optimal_k_silhouette = k_range[silhouette_scores.index(max(silhouette_scores))]
+optimal_k = 4  # Use 4 clusters for seasonal patterns
+
+print(f"\n    Metrics calculated for K=2 to K=10")
+print(f"    Best K by silhouette score: {optimal_k_silhouette} (score: {max(silhouette_scores):.3f})")
+print(f"    Using K={optimal_k} clusters (seasonal climate patterns)")
+
+# Visualize elbow method and silhouette scores
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+# Elbow plot
+ax1.plot(k_range, inertias, 'bo-', linewidth=2, markersize=8)
+ax1.axvline(x=optimal_k, color='red', linestyle='--', linewidth=2, label=f'Selected: K={optimal_k}')
+ax1.set_xlabel('Number of Clusters (K)', fontsize=12)
+ax1.set_ylabel('Inertia (Within-cluster sum of squares)', fontsize=12)
+ax1.set_title('Elbow Method', fontsize=13, fontweight='bold')
+ax1.grid(True, alpha=0.3)
+ax1.legend()
+ax1.set_xticks(k_range)
+
+# Silhouette plot
+ax2.plot(k_range, silhouette_scores, 'go-', linewidth=2, markersize=8)
+ax2.axvline(x=optimal_k, color='red', linestyle='--', linewidth=2, label=f'Selected: K={optimal_k}')
+ax2.axvline(x=optimal_k_silhouette, color='orange', linestyle='--', linewidth=2, label=f'Best: K={optimal_k_silhouette}')
+ax2.set_xlabel('Number of Clusters (K)', fontsize=12)
+ax2.set_ylabel('Silhouette Score', fontsize=12)
+ax2.set_title('Silhouette Score Analysis', fontsize=13, fontweight='bold')
+ax2.grid(True, alpha=0.3)
+ax2.legend()
+ax2.set_xticks(k_range)
+
+plt.tight_layout()
+plt.savefig('task1plt/optimal_clusters.png', dpi=300, bbox_inches='tight')
+print("    Saved optimal clusters analysis to 'task1plt/optimal_clusters.png'")
+
+# Apply K-means with optimal K
+print(f"\n6.2 Applying K-means clustering with K={optimal_k}...")
+kmeans_final = KMeans(n_clusters=optimal_k, random_state=42, n_init=10)
+clusters = kmeans_final.fit_predict(df_pca_final)
+
+# Add cluster labels to dataframe
+df_pca_final['Cluster'] = clusters
+
+print(f"    Clustering completed!")
+print(f"    Silhouette Score: {silhouette_score(df_pca_final.drop('Cluster', axis=1), clusters):.3f}")
+print(f"\n    Cluster distribution:")
+for i in range(optimal_k):
+    count = (clusters == i).sum()
+    percentage = (count / len(clusters)) * 100
+    print(f"      Cluster {i}: {count} samples ({percentage:.1f}%)")
+
+# Visualize clustering results - simple 2D plot using first 2 PCs
+plt.figure(figsize=(10, 8))
+scatter = plt.scatter(df_pca_final['PC1'], df_pca_final['PC2'],
+                     c=clusters, cmap='viridis', s=50, alpha=0.6, edgecolor='black')
+
+# Plot cluster centers
+centers_2d = kmeans_final.cluster_centers_[:, :2]
+plt.scatter(centers_2d[:, 0], centers_2d[:, 1],
+           c='red', marker='X', s=300, edgecolor='black', linewidth=2,
+           label='Cluster Centers')
+
+plt.xlabel('PC1 (First Principal Component)', fontsize=12)
+plt.ylabel('PC2 (Second Principal Component)', fontsize=12)
+plt.title(f'K-means Clustering Results (K={optimal_k})', fontsize=14, fontweight='bold')
+plt.colorbar(scatter, label='Cluster')
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.savefig('task1plt/clustering_results.png', dpi=300, bbox_inches='tight')
+print("    Saved clustering visualization to 'task1plt/clustering_results.png'")
+
+# Save clustering results
+df_pca_final.to_csv('task1data/clustered_data.csv', index=False)
+print("    Saved clustered data to 'task1data/clustered_data.csv'")
+
+# Cluster statistics
+cluster_stats = df_pca_final.groupby('Cluster').agg(['mean', 'std'])
+cluster_stats.to_csv('task1data/cluster_statistics.csv')
+print("    Saved cluster statistics to 'task1data/cluster_statistics.csv'")
+
+# ============================================================================
 # SUMMARY
 # ============================================================================
 print("\n" + "=" * 80)
-print("DATA PREPROCESSING COMPLETE!")
+print("DATA PREPROCESSING AND CLUSTERING COMPLETE!")
 print("=" * 80)
 
 print("\nPreprocessing Summary:")
@@ -262,12 +369,26 @@ print(f"     - Method: PCA (Principal Component Analysis)")
 print(f"     - Variance explained: {sum(pca_selected.explained_variance_ratio_)*100:.2f}%")
 print(f"     - Components needed for 95% variance: {n_components_95}")
 
+print(f"\n  5. Clustering (K-means):")
+print(f"     - Number of clusters: {optimal_k}")
+print(f"     - Method: K-means clustering")
+print(f"     - Silhouette score: {silhouette_score(df_pca_final.drop('Cluster', axis=1), clusters):.3f}")
+print(f"     - Best K by silhouette: {optimal_k_silhouette}")
+for i in range(optimal_k):
+    count = (clusters == i).sum()
+    percentage = (count / len(clusters)) * 100
+    print(f"     - Cluster {i}: {count} samples ({percentage:.1f}%)")
+
 print("\nGenerated Files:")
 print("  Plots:")
 print("    - task1plt/standardization_comparison.png (before/after all 18 features)")
 print("    - task1plt/pca_scree_plot.png (variance explained by each component)")
+print("    - task1plt/optimal_clusters.png (elbow method and silhouette scores)")
+print("    - task1plt/clustering_results.png (K-means clustering visualization)")
 print("\n  Data:")
 print("    - task1data/outlier_report.csv")
 print("    - task1data/data_standardized.csv")
 print("    - task1data/pca_data.csv (PCA transformed data)")
+print("    - task1data/clustered_data.csv (PCA data with cluster labels)")
+print("    - task1data/cluster_statistics.csv (statistics for each cluster)")
 print("=" * 80)
