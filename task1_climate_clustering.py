@@ -132,6 +132,39 @@ pd.DataFrame({'Selected_Features': selected_features}).to_csv(
     'task1data/selected_features.csv', index=False)
 print("    Saved selected features to 'task1data/selected_features.csv'")
 
+# Visualize feature selection
+print("\n    Creating feature selection visualization...")
+fig, ax = plt.subplots(figsize=(10, 6))
+
+# Mark which features are selected
+feature_status = ['Selected' if feat in selected_features else 'Excluded'
+                  for feat in column_names]
+colors = ['green' if status == 'Selected' else 'lightgray'
+          for status in feature_status]
+
+# Create bar plot
+y_pos = np.arange(len(column_names))
+ax.barh(y_pos, [1]*len(column_names), color=colors, alpha=0.7)
+ax.set_yticks(y_pos)
+ax.set_yticklabels(column_names)
+ax.set_xlabel('Feature Status')
+ax.set_title(f'Feature Selection: {len(selected_features)} of {len(column_names)} Features Selected')
+ax.set_xticks([])
+
+# Add legend
+from matplotlib.patches import Patch
+legend_elements = [Patch(facecolor='green', alpha=0.7, label=f'Selected ({len(selected_features)})'),
+                   Patch(facecolor='lightgray', alpha=0.7, label=f'Excluded ({len(column_names) - len(selected_features)})')]
+ax.legend(handles=legend_elements, loc='lower right')
+
+# Add annotation
+ax.text(0.5, -0.5, 'Strategy: Keep Mean values, exclude Min/Max to reduce redundancy',
+        transform=ax.transAxes, ha='center', fontsize=10, style='italic')
+
+plt.tight_layout()
+plt.savefig('task1plt/feature_selection.png', dpi=300, bbox_inches='tight')
+print("    Saved feature selection plot to 'task1plt/feature_selection.png'")
+
 # 2.6 PCA for Visualization
 print("\n2.6 PCA for Visualization...")
 print(f"    Reducing {len(selected_features)} selected features to 2 for visualization")
@@ -354,6 +387,7 @@ print(f"  - Selected features: {len(selected_features)}")
 print("  - Selected: " + ", ".join(selected_features))
 print("\nGenerated files:")
 print("  Plots:")
+print("    - task1plt/feature_selection.png")
 print("    - task1plt/kmeans_elbow_method.png")
 print("    - task1plt/clustering_results.png")
 print("    - task1plt/cluster_characteristics.png")
