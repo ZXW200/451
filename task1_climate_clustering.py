@@ -108,6 +108,104 @@ df_pca = pca.fit_transform(df_scaled.values)
 print(f"    Explained variance ratio: {pca.explained_variance_ratio_}")
 print(f"    Total variance explained: {sum(pca.explained_variance_ratio_):.2%}")
 
+# 2.6 Feature Importance Analysis with PCA
+print("\n2.6 Feature Importance Analysis with PCA...")
+print("    Performing full PCA to analyze feature contributions")
+
+# Perform PCA with all components to understand feature importance
+pca_full = PCA()
+pca_full.fit(df_scaled.values)
+
+# Calculate cumulative explained variance
+cumulative_variance = np.cumsum(pca_full.explained_variance_ratio_)
+
+# Find number of components needed for 95% variance
+n_components_95 = np.argmax(cumulative_variance >= 0.95) + 1
+print(f"    Components needed for 95% variance: {n_components_95}")
+
+# Visualize explained variance
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+# Scree plot
+axes[0].bar(range(1, len(pca_full.explained_variance_ratio_) + 1),
+            pca_full.explained_variance_ratio_, alpha=0.7)
+axes[0].plot(range(1, len(cumulative_variance) + 1),
+             cumulative_variance, 'ro-', linewidth=2, label='Cumulative')
+axes[0].axhline(y=0.95, color='g', linestyle='--', label='95% threshold')
+axes[0].set_xlabel('Principal Component')
+axes[0].set_ylabel('Explained Variance Ratio')
+axes[0].set_title('Scree Plot - PCA Explained Variance')
+axes[0].legend()
+axes[0].grid(True, alpha=0.3)
+
+# Feature contributions to first 2 PCs (loadings)
+loadings = pca_full.components_[:2, :].T * np.sqrt(pca_full.explained_variance_[:2])
+loadings_df = pd.DataFrame(
+    loadings,
+    columns=['PC1', 'PC2'],
+    index=column_names
+)
+
+# Plot loadings as biplot-style visualization
+for i, feature in enumerate(column_names):
+    axes[1].arrow(0, 0, loadings_df.loc[feature, 'PC1'],
+                  loadings_df.loc[feature, 'PC2'],
+                  head_width=0.05, head_length=0.05, fc='blue', ec='blue', alpha=0.6)
+    axes[1].text(loadings_df.loc[feature, 'PC1'] * 1.15,
+                 loadings_df.loc[feature, 'PC2'] * 1.15,
+                 feature, fontsize=8, ha='center')
+
+axes[1].set_xlabel(f'PC1 ({pca_full.explained_variance_ratio_[0]:.1%} variance)')
+axes[1].set_ylabel(f'PC2 ({pca_full.explained_variance_ratio_[1]:.1%} variance)')
+axes[1].set_title('PCA Feature Loadings (Biplot)')
+axes[1].axhline(y=0, color='k', linestyle='-', linewidth=0.5)
+axes[1].axvline(x=0, color='k', linestyle='-', linewidth=0.5)
+axes[1].grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.savefig('task1plt/pca_analysis.png', dpi=300, bbox_inches='tight')
+print("    Saved PCA analysis to 'task1plt/pca_analysis.png'")
+
+# Calculate feature importance based on contribution to top components
+# Using first n_components_95 components
+feature_importance = np.abs(pca_full.components_[:n_components_95, :]).sum(axis=0)
+feature_importance = feature_importance / feature_importance.sum()  # Normalize
+
+# Create feature importance dataframe
+importance_df = pd.DataFrame({
+    'Feature': column_names,
+    'Importance': feature_importance
+}).sort_values('Importance', ascending=False)
+
+print("\n    Feature Importance (based on PCA contributions):")
+print(importance_df.to_string(index=False))
+
+# Visualize feature importance
+plt.figure(figsize=(10, 6))
+plt.barh(importance_df['Feature'], importance_df['Importance'])
+plt.xlabel('Normalized Importance Score')
+plt.ylabel('Feature')
+plt.title(f'Feature Importance based on PCA (top {n_components_95} components)')
+plt.tight_layout()
+plt.savefig('task1plt/feature_importance_pca.png', dpi=300, bbox_inches='tight')
+print("    Saved feature importance plot to 'task1plt/feature_importance_pca.png'")
+
+# Save feature importance to CSV
+importance_df.to_csv('task1data/feature_importance.csv', index=False)
+print("    Saved feature importance to 'task1data/feature_importance.csv'")
+
+# Correlation heatmap
+print("\n    Analyzing feature correlations...")
+correlation_matrix = df_scaled.corr()
+plt.figure(figsize=(14, 12))
+sns.heatmap(correlation_matrix, annot=True, fmt='.2f', cmap='coolwarm',
+            center=0, square=True, linewidths=0.5,
+            cbar_kws={"shrink": 0.8})
+plt.title('Feature Correlation Heatmap')
+plt.tight_layout()
+plt.savefig('task1plt/correlation_heatmap.png', dpi=300, bbox_inches='tight')
+print("    Saved correlation heatmap to 'task1plt/correlation_heatmap.png'")
+
 # ============================================================================
 # 3. CLUSTERING ALGORITHM 1: K-MEANS
 # ============================================================================
@@ -316,10 +414,14 @@ print("\n" + "=" * 80)
 print("ANALYSIS COMPLETE!")
 print("Generated files:")
 print("  Plots:")
+print("    - task1plt/pca_analysis.png")
+print("    - task1plt/feature_importance_pca.png")
+print("    - task1plt/correlation_heatmap.png")
 print("    - task1plt/kmeans_elbow_method.png")
 print("    - task1plt/clustering_results.png")
 print("    - task1plt/cluster_characteristics.png")
 print("  Data:")
+print("    - task1data/feature_importance.csv")
 print("    - task1data/clustering_results.csv")
 print("    - task1data/cluster_statistics.csv")
 print("=" * 80)
