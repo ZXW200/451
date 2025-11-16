@@ -178,60 +178,76 @@ print("\n" + "=" * 80)
 print("5. FEATURE SELECTION/EXTRACTION")
 print("=" * 80)
 
-# 5.1 Calculate feature importance based on variance
-print("\n5.1 Calculating Feature Importance (Variance-based)...")
-print("    Higher variance = more information content")
+# 5.1 Correlation Analysis
+print("\n5.1 Correlation Analysis...")
+print("    Finding redundant features (high correlation)")
 
-# Calculate variance for each feature (using standardized data)
-feature_variance = df_scaled.var()
-feature_importance = pd.DataFrame({
-    'Feature': column_names,
-    'Variance': feature_variance.values
-}).sort_values('Variance', ascending=False)
+# Calculate correlation matrix
+correlation_matrix = df_scaled.corr()
 
-print("\n    Top 10 features by variance:")
-print(feature_importance.head(10).to_string(index=False))
-
-# 5.2 Feature Selection - Select top 7 features by variance
-print("\n5.2 Feature Selection Strategy...")
-print("    Strategy: Select top 7 features by variance (highest information content)")
-
-# Automatically select top 7 features based on variance
-top_n = 7
-selected_features = feature_importance.head(top_n)['Feature'].tolist()
-
-print(f"\n    Selected top {top_n} features from original {len(column_names)}:")
-for i, feat in enumerate(selected_features, 1):
-    var = feature_variance[feat]
-    print(f"      {i}. {feat} (variance: {var:.4f})")
-
-# Visualize why these features were selected - show actual data distributions
-fig, axes = plt.subplots(3, 6, figsize=(18, 10))
-axes = axes.flatten()
-
-for idx, feat in enumerate(column_names):
-    ax = axes[idx]
-
-    # Plot data distribution for each feature
-    ax.hist(df_clean[feat], bins=25, color='steelblue', alpha=0.7, edgecolor='black')
-
-    # Highlight selected features
-    if feat in selected_features:
-        ax.set_facecolor('#e8f5e9')  # Light green background
-        ax.set_title(f'{feat}\n✓ SELECTED\nVar={feature_variance[feat]:.3f}',
-                    fontsize=8, fontweight='bold', color='green')
-    else:
-        ax.set_title(f'{feat}\nVar={feature_variance[feat]:.3f}',
-                    fontsize=8, color='gray')
-
-    ax.tick_params(labelsize=6)
-    ax.grid(True, alpha=0.3)
-
-plt.suptitle('Feature Selection: Data Distribution & Variance\n(Green background = Selected top 7 by variance)',
-             fontsize=14, fontweight='bold')
+# Visualize correlation heatmap
+plt.figure(figsize=(14, 12))
+sns.heatmap(correlation_matrix, annot=True, fmt='.2f', cmap='coolwarm',
+            center=0, square=True, linewidths=0.5, cbar_kws={"shrink": 0.8})
+plt.title('Feature Correlation Matrix\n(High correlation = Redundant features)', fontsize=14, fontweight='bold')
 plt.tight_layout()
-plt.savefig('task1plt/feature_selection_data.png', dpi=300, bbox_inches='tight')
-print("    Saved feature selection visualization to 'task1plt/feature_selection_data.png'")
+plt.savefig('task1plt/correlation_matrix.png', dpi=300, bbox_inches='tight')
+print("    Saved correlation matrix to 'task1plt/correlation_matrix.png'")
+
+# 5.2 Feature Selection - Remove redundant features based on correlation
+print("\n5.2 Feature Selection Strategy...")
+print("    Strategy: Remove highly correlated features (correlation > 0.9)")
+print("    Keep one representative from each correlated group")
+
+# Find highly correlated pairs
+high_corr_pairs = []
+for i in range(len(correlation_matrix.columns)):
+    for j in range(i+1, len(correlation_matrix.columns)):
+        if abs(correlation_matrix.iloc[i, j]) > 0.9:
+            high_corr_pairs.append((
+                correlation_matrix.columns[i],
+                correlation_matrix.columns[j],
+                correlation_matrix.iloc[i, j]
+            ))
+
+print(f"\n    Found {len(high_corr_pairs)} highly correlated pairs (|corr| > 0.9):")
+for feat1, feat2, corr in high_corr_pairs[:10]:  # Show first 10
+    print(f"    - {feat1} <-> {feat2}: {corr:.3f}")
+
+# Strategy: For each weather type, keep only Mean value (most representative)
+# Independent features: Precipitation, Snowfall, Sunshine (no Min/Max)
+selected_features = [
+    'Temp_Mean',        # Temperature representative (drop Min, Max)
+    'Humidity_Mean',    # Humidity representative (drop Min, Max)
+    'Pressure_Mean',    # Pressure representative (drop Min, Max)
+    'Precipitation',    # Independent feature
+    'Snowfall',         # Independent feature
+    'Sunshine',         # Independent feature
+    'WindSpeed_Mean'    # Wind representative (drop Min, Max, Gust)
+]
+
+print(f"\n    Selected {len(selected_features)} features from original {len(column_names)}:")
+print("    Selection rule: Keep 'Mean' from correlated groups, keep independent features")
+for i, feat in enumerate(selected_features, 1):
+    print(f"      {i}. {feat}")
+
+# Show which features were dropped and why
+dropped_features = [f for f in column_names if f not in selected_features]
+print(f"\n    Dropped {len(dropped_features)} redundant features:")
+print("    - Temperature: Temp_Min, Temp_Max (correlated with Temp_Mean)")
+print("    - Humidity: Humidity_Min, Humidity_Max (correlated with Humidity_Mean)")
+print("    - Pressure: Pressure_Min, Pressure_Max (correlated with Pressure_Mean)")
+print("    - Wind: WindSpeed_Min, WindSpeed_Max, WindGust_* (correlated with WindSpeed_Mean)")
+
+# Visualize correlation for selected features only
+plt.figure(figsize=(8, 7))
+selected_corr = correlation_matrix.loc[selected_features, selected_features]
+sns.heatmap(selected_corr, annot=True, fmt='.2f', cmap='coolwarm',
+            center=0, square=True, linewidths=1, cbar_kws={"shrink": 0.8})
+plt.title('Selected Features Correlation Matrix\n(After removing redundant features)', fontsize=12, fontweight='bold')
+plt.tight_layout()
+plt.savefig('task1plt/selected_features_correlation.png', dpi=300, bbox_inches='tight')
+print("    Saved selected features correlation to 'task1plt/selected_features_correlation.png'")
 
 # Create dataset with selected features
 df_selected = df_clean[selected_features]
@@ -239,9 +255,9 @@ df_scaled_selected = df_scaled[selected_features]
 
 print(f"\n    Reduced dimensionality: {len(column_names)} -> {len(selected_features)} features")
 
-# Save feature importance and selected features
-feature_importance.to_csv('task1data/feature_importance.csv', index=False)
-print("    Saved feature importance to 'task1data/feature_importance.csv'")
+# Save correlation matrix and selected features
+correlation_matrix.to_csv('task1data/correlation_matrix.csv')
+print("    Saved correlation matrix to 'task1data/correlation_matrix.csv'")
 
 pd.DataFrame({'Selected_Features': selected_features}).to_csv(
     'task1data/selected_features.csv', index=False)
@@ -270,16 +286,18 @@ print(f"     - Result: Mean ≈ 0, Std ≈ 1")
 print(f"\n  4. Feature Selection:")
 print(f"     - Original features: {len(column_names)}")
 print(f"     - Selected features: {len(selected_features)}")
-print(f"     - Method: Variance-based ranking")
+print(f"     - Method: Correlation-based (remove redundancy)")
+print(f"     - Strategy: Keep Mean from correlated groups")
 print(f"     - Selected: {', '.join(selected_features)}")
 
 print("\nGenerated Files:")
 print("  Plots:")
-print("    - task1plt/standardization_comparison.png (before/after standardization)")
-print("    - task1plt/feature_selection_data.png (data distributions with variance)")
+print("    - task1plt/standardization_comparison.png (before/after all 18 features)")
+print("    - task1plt/correlation_matrix.png (18x18 correlation heatmap)")
+print("    - task1plt/selected_features_correlation.png (7x7 after selection)")
 print("\n  Data:")
 print("    - task1data/outlier_report.csv")
 print("    - task1data/data_standardized.csv")
-print("    - task1data/feature_importance.csv")
+print("    - task1data/correlation_matrix.csv")
 print("    - task1data/selected_features.csv")
 print("=" * 80)
