@@ -163,30 +163,31 @@ print("\n    Standardization completed!")
 print(f"    Mean after scaling (should be ~0): {df_scaled.mean().mean():.6f}")
 print(f"    Std after scaling (should be ~1): {df_scaled.std().mean():.6f}")
 
-# Visualize before/after standardization using histograms
-# Pick 4 representative features for clearer visualization
-sample_features = ['Temp_Mean', 'Humidity_Mean', 'Pressure_Mean', 'Precipitation']
+# Visualize before/after standardization - show all features
+fig, axes = plt.subplots(2, 9, figsize=(20, 6))
 
-fig, axes = plt.subplots(2, 4, figsize=(16, 8))
+for idx, feat in enumerate(column_names):
+    row = idx // 9
+    col = idx % 9
 
-for idx, feat in enumerate(sample_features):
     # Before standardization
-    axes[0, idx].hist(df_clean[feat], bins=30, color='steelblue', alpha=0.7, edgecolor='black')
-    axes[0, idx].set_title(f'{feat}\n(Original)', fontsize=10)
-    axes[0, idx].set_xlabel('Value')
-    axes[0, idx].set_ylabel('Frequency')
-    axes[0, idx].grid(True, alpha=0.3)
+    if row == 0:
+        axes[row, col].hist(df_clean[feat], bins=20, color='steelblue', alpha=0.7, edgecolor='black')
+        axes[row, col].set_title(feat, fontsize=8)
+        axes[row, col].tick_params(labelsize=6)
+        axes[row, col].grid(True, alpha=0.3)
 
     # After standardization
-    axes[1, idx].hist(df_scaled[feat], bins=30, color='green', alpha=0.7, edgecolor='black')
-    axes[1, idx].set_title(f'{feat}\n(Standardized)', fontsize=10)
-    axes[1, idx].set_xlabel('Z-score')
-    axes[1, idx].set_ylabel('Frequency')
-    axes[1, idx].axvline(x=0, color='red', linestyle='--', linewidth=2, label='Mean=0')
-    axes[1, idx].grid(True, alpha=0.3)
-    axes[1, idx].legend()
+    if row == 1:
+        axes[row, col].hist(df_scaled[feat], bins=20, color='green', alpha=0.7, edgecolor='black')
+        axes[row, col].axvline(x=0, color='red', linestyle='--', linewidth=1)
+        axes[row, col].tick_params(labelsize=6)
+        axes[row, col].grid(True, alpha=0.3)
 
-plt.suptitle('Before and After Standardization (Sample Features)', fontsize=14, y=0.995)
+axes[0, 0].set_ylabel('Original', fontsize=10)
+axes[1, 0].set_ylabel('Standardized', fontsize=10)
+
+plt.suptitle('Standardization Comparison - All Features', fontsize=14)
 plt.tight_layout()
 plt.savefig('task1plt/standardization_comparison.png', dpi=300, bbox_inches='tight')
 print("    Saved standardization comparison to 'task1plt/standardization_comparison.png'")
@@ -216,14 +217,14 @@ feature_importance = pd.DataFrame({
 print("\n    Top 10 features by variance:")
 print(feature_importance.head(10).to_string(index=False))
 
-# Visualize feature importance with simple bar chart
+# Visualize feature importance with simple bar chart (will mark selected ones after selection)
 plt.figure(figsize=(10, 6))
-colors = ['green' if i < 10 else 'lightgray' for i in range(len(feature_importance))]
-plt.barh(range(len(feature_importance)), feature_importance['Variance'].values, color=colors, alpha=0.7)
-plt.yticks(range(len(feature_importance)), feature_importance['Feature'].values)
+plt.barh(range(len(feature_importance)), feature_importance['Variance'].values,
+         color='steelblue', alpha=0.7)
+plt.yticks(range(len(feature_importance)), feature_importance['Feature'].values, fontsize=9)
 plt.xlabel('Variance (Importance Score)', fontsize=12)
 plt.ylabel('Features', fontsize=12)
-plt.title('Feature Importance Ranking (Top 10 in Green)', fontsize=14)
+plt.title('Feature Importance Ranking by Variance', fontsize=14)
 plt.grid(True, alpha=0.3, axis='x')
 plt.tight_layout()
 plt.savefig('task1plt/feature_importance_ranking.png', dpi=300, bbox_inches='tight')
@@ -233,33 +234,37 @@ print("    Saved feature importance ranking to 'task1plt/feature_importance_rank
 feature_importance.to_csv('task1data/feature_importance.csv', index=False)
 print("    Saved feature importance to 'task1data/feature_importance.csv'")
 
-# 5.2 Feature Selection - Select top features avoiding redundancy
+# 5.2 Feature Selection - Select top 7 features by variance
 print("\n5.2 Feature Selection Strategy...")
-print("    Strategy: Select top variance features, but avoid redundancy (Min/Max/Mean)")
-print("    For each weather type, keep only the Mean value")
+print("    Strategy: Select top 7 features by variance (highest information content)")
 
-# Select features: prioritize Mean values from high variance features
-selected_features = [
-    'Temp_Mean',        # Temperature representative
-    'Humidity_Mean',    # Humidity representative
-    'Pressure_Mean',    # Pressure representative
-    'Precipitation',    # Independent feature
-    'Snowfall',         # Independent feature
-    'Sunshine',         # Independent feature
-    'WindSpeed_Mean'    # Wind representative
-]
+# Automatically select top 7 features based on variance
+top_n = 7
+selected_features = feature_importance.head(top_n)['Feature'].tolist()
 
-print(f"\n    Selected {len(selected_features)} features from original {len(column_names)}:")
+print(f"\n    Selected top {top_n} features from original {len(column_names)}:")
 for i, feat in enumerate(selected_features, 1):
     var = feature_variance[feat]
-    rank = feature_importance[feature_importance['Feature'] == feat].index[0] + 1
-    print(f"      {i}. {feat} (variance: {var:.4f}, rank: {rank})")
+    print(f"      {i}. {feat} (variance: {var:.4f})")
 
 # Create dataset with selected features
 df_selected = df_clean[selected_features]
 df_scaled_selected = df_scaled[selected_features]
 
 print(f"\n    Reduced dimensionality: {len(column_names)} -> {len(selected_features)} features")
+
+# Visualize selected features
+plt.figure(figsize=(10, 6))
+colors = ['green' if feat in selected_features else 'lightgray' for feat in feature_importance['Feature']]
+plt.barh(range(len(feature_importance)), feature_importance['Variance'].values, color=colors, alpha=0.7)
+plt.yticks(range(len(feature_importance)), feature_importance['Feature'].values, fontsize=9)
+plt.xlabel('Variance (Importance Score)', fontsize=12)
+plt.ylabel('Features', fontsize=12)
+plt.title(f'Feature Selection: Top {top_n} by Variance (Green)', fontsize=14)
+plt.grid(True, alpha=0.3, axis='x')
+plt.tight_layout()
+plt.savefig('task1plt/feature_selection.png', dpi=300, bbox_inches='tight')
+print("    Saved feature selection to 'task1plt/feature_selection.png'")
 
 # Save selected features
 pd.DataFrame({'Selected_Features': selected_features}).to_csv(
@@ -296,8 +301,9 @@ print("\nGenerated Files:")
 print("  Plots:")
 print("    - task1plt/missing_data.png (bar chart)")
 print("    - task1plt/outlier_detection.png (bar chart)")
-print("    - task1plt/standardization_comparison.png (histograms)")
-print("    - task1plt/feature_importance_ranking.png (bar chart)")
+print("    - task1plt/standardization_comparison.png (all 18 features histograms)")
+print("    - task1plt/feature_importance_ranking.png (variance ranking)")
+print("    - task1plt/feature_selection.png (top 7 selected)")
 print("\n  Data:")
 print("    - task1data/outlier_report.csv")
 print("    - task1data/data_standardized.csv")
