@@ -194,50 +194,96 @@ plt.tight_layout()
 plt.savefig('task1plt/correlation_matrix.png', dpi=300, bbox_inches='tight')
 print("    Saved correlation matrix to 'task1plt/correlation_matrix.png'")
 
-# 5.2 Feature Selection - Remove redundant features based on correlation
-print("\n5.2 Feature Selection Strategy...")
-print("    Strategy: Remove highly correlated features (correlation > 0.9)")
-print("    Keep one representative from each correlated group")
+# 5.2 Feature Selection - Automatic selection based on correlation
+print("\n5.2 Automatic Feature Selection...")
+print("    Strategy: Remove features with high correlation (> 0.9)")
+print("    If two features are highly correlated, keep the one with higher variance")
 
-# Find highly correlated pairs
-high_corr_pairs = []
+# Calculate variance for each feature
+feature_variance = df_scaled.var().sort_values(ascending=False)
+
+# Greedy algorithm to remove redundant features
+selected_features = list(column_names)
+removed_features = {}
+
 for i in range(len(correlation_matrix.columns)):
+    feat1 = correlation_matrix.columns[i]
+    if feat1 not in selected_features:
+        continue
+
     for j in range(i+1, len(correlation_matrix.columns)):
-        if abs(correlation_matrix.iloc[i, j]) > 0.9:
-            high_corr_pairs.append((
-                correlation_matrix.columns[i],
-                correlation_matrix.columns[j],
-                correlation_matrix.iloc[i, j]
-            ))
+        feat2 = correlation_matrix.columns[j]
+        if feat2 not in selected_features:
+            continue
 
-print(f"\n    Found {len(high_corr_pairs)} highly correlated pairs (|corr| > 0.9):")
-for feat1, feat2, corr in high_corr_pairs[:10]:  # Show first 10
-    print(f"    - {feat1} <-> {feat2}: {corr:.3f}")
+        corr = abs(correlation_matrix.iloc[i, j])
+        if corr > 0.9:
+            # Remove the feature with lower variance
+            var1 = feature_variance[feat1]
+            var2 = feature_variance[feat2]
 
-# Strategy: For each weather type, keep only Mean value (most representative)
-# Independent features: Precipitation, Snowfall, Sunshine (no Min/Max)
-selected_features = [
-    'Temp_Mean',        # Temperature representative (drop Min, Max)
-    'Humidity_Mean',    # Humidity representative (drop Min, Max)
-    'Pressure_Mean',    # Pressure representative (drop Min, Max)
-    'Precipitation',    # Independent feature
-    'Snowfall',         # Independent feature
-    'Sunshine',         # Independent feature
-    'WindSpeed_Mean'    # Wind representative (drop Min, Max, Gust)
-]
+            if var1 >= var2:
+                to_remove = feat2
+                to_keep = feat1
+            else:
+                to_remove = feat1
+                to_keep = feat2
+
+            if to_remove in selected_features:
+                selected_features.remove(to_remove)
+                removed_features[to_remove] = {
+                    'correlated_with': to_keep,
+                    'correlation': corr,
+                    'variance': feature_variance[to_remove]
+                }
+                print(f"    Removed {to_remove} (corr={corr:.3f} with {to_keep}, var={feature_variance[to_remove]:.3f})")
 
 print(f"\n    Selected {len(selected_features)} features from original {len(column_names)}:")
-print("    Selection rule: Keep 'Mean' from correlated groups, keep independent features")
 for i, feat in enumerate(selected_features, 1):
-    print(f"      {i}. {feat}")
+    var = feature_variance[feat]
+    print(f"      {i}. {feat} (variance: {var:.3f})")
 
-# Show which features were dropped and why
-dropped_features = [f for f in column_names if f not in selected_features]
-print(f"\n    Dropped {len(dropped_features)} redundant features:")
-print("    - Temperature: Temp_Min, Temp_Max (correlated with Temp_Mean)")
-print("    - Humidity: Humidity_Min, Humidity_Max (correlated with Humidity_Mean)")
-print("    - Pressure: Pressure_Min, Pressure_Max (correlated with Pressure_Mean)")
-print("    - Wind: WindSpeed_Min, WindSpeed_Max, WindGust_* (correlated with WindSpeed_Mean)")
+print(f"\n    Removed {len(removed_features)} redundant features (correlation > 0.9):")
+
+# Visualize feature selection process
+fig, ax = plt.subplots(figsize=(12, 8))
+
+# Plot all features ranked by variance
+all_features = feature_variance.index.tolist()
+variances = feature_variance.values
+
+y_positions = range(len(all_features))
+colors = []
+labels = []
+
+for feat in all_features:
+    if feat in selected_features:
+        colors.append('green')
+        labels.append(f'{feat}\n✓ SELECTED\nVar={feature_variance[feat]:.3f}')
+    else:
+        removed_info = removed_features[feat]
+        colors.append('red')
+        labels.append(f'{feat}\n✗ Removed\nCorr with {removed_info["correlated_with"][:12]}...\n{removed_info["correlation"]:.2f}')
+
+bars = ax.barh(y_positions, variances, color=colors, alpha=0.7)
+ax.set_yticks(y_positions)
+ax.set_yticklabels(labels, fontsize=8)
+ax.set_xlabel('Variance', fontsize=12)
+ax.set_title(f'Automatic Feature Selection Based on Correlation\nGreen = Selected ({len(selected_features)}), Red = Removed ({len(removed_features)})',
+             fontsize=13, fontweight='bold')
+ax.grid(True, alpha=0.3, axis='x')
+
+# Add legend
+from matplotlib.patches import Patch
+legend_elements = [
+    Patch(facecolor='green', alpha=0.7, label=f'Selected ({len(selected_features)})'),
+    Patch(facecolor='red', alpha=0.7, label=f'Removed - High correlation ({len(removed_features)})')
+]
+ax.legend(handles=legend_elements, loc='lower right')
+
+plt.tight_layout()
+plt.savefig('task1plt/feature_selection_process.png', dpi=300, bbox_inches='tight')
+print("    Saved feature selection process to 'task1plt/feature_selection_process.png'")
 
 # Visualize correlation for selected features only
 plt.figure(figsize=(8, 7))
@@ -255,13 +301,29 @@ df_scaled_selected = df_scaled[selected_features]
 
 print(f"\n    Reduced dimensionality: {len(column_names)} -> {len(selected_features)} features")
 
-# Save correlation matrix and selected features
+# Save correlation matrix and feature selection details
 correlation_matrix.to_csv('task1data/correlation_matrix.csv')
 print("    Saved correlation matrix to 'task1data/correlation_matrix.csv'")
 
-pd.DataFrame({'Selected_Features': selected_features}).to_csv(
+# Save selected features
+pd.DataFrame({'Selected_Features': selected_features,
+              'Variance': [feature_variance[f] for f in selected_features]}).to_csv(
     'task1data/selected_features.csv', index=False)
 print("    Saved selected features to 'task1data/selected_features.csv'")
+
+# Save removed features with reasons
+if removed_features:
+    removed_df = pd.DataFrame([
+        {
+            'Removed_Feature': feat,
+            'Correlated_With': info['correlated_with'],
+            'Correlation': info['correlation'],
+            'Variance': info['variance']
+        }
+        for feat, info in removed_features.items()
+    ])
+    removed_df.to_csv('task1data/removed_features.csv', index=False)
+    print("    Saved removed features to 'task1data/removed_features.csv'")
 
 # ============================================================================
 # SUMMARY
@@ -286,18 +348,21 @@ print(f"     - Result: Mean ≈ 0, Std ≈ 1")
 print(f"\n  4. Feature Selection:")
 print(f"     - Original features: {len(column_names)}")
 print(f"     - Selected features: {len(selected_features)}")
-print(f"     - Method: Correlation-based (remove redundancy)")
-print(f"     - Strategy: Keep Mean from correlated groups")
+print(f"     - Removed features: {len(removed_features)}")
+print(f"     - Method: Automatic correlation-based selection")
+print(f"     - Strategy: Remove features with |corr| > 0.9, keep higher variance")
 print(f"     - Selected: {', '.join(selected_features)}")
 
 print("\nGenerated Files:")
 print("  Plots:")
 print("    - task1plt/standardization_comparison.png (before/after all 18 features)")
 print("    - task1plt/correlation_matrix.png (18x18 correlation heatmap)")
-print("    - task1plt/selected_features_correlation.png (7x7 after selection)")
+print("    - task1plt/feature_selection_process.png (why selected/removed)")
+print("    - task1plt/selected_features_correlation.png (correlation after selection)")
 print("\n  Data:")
 print("    - task1data/outlier_report.csv")
 print("    - task1data/data_standardized.csv")
 print("    - task1data/correlation_matrix.csv")
-print("    - task1data/selected_features.csv")
+print("    - task1data/selected_features.csv (with variance values)")
+print("    - task1data/removed_features.csv (with removal reasons)")
 print("=" * 80)
