@@ -1,16 +1,14 @@
 """
-Task 1: Basel Climate Dataset Clustering
+Task 1: Basel Climate Dataset - Data Preprocessing
 Student: Average Level Implementation
-This script performs clustering analysis on the Basel climate dataset.
+This script performs data preprocessing on the Basel climate dataset.
 """
 
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import KMeans, DBSCAN
 from sklearn.decomposition import PCA
-from sklearn.metrics import silhouette_score, davies_bouldin_score
 import seaborn as sns
 import os
 
@@ -25,7 +23,7 @@ os.makedirs('task1plt', exist_ok=True)
 # 1. DATA LOADING
 # ============================================================================
 print("=" * 80)
-print("TASK 1: BASEL CLIMATE DATASET CLUSTERING")
+print("TASK 1: BASEL CLIMATE DATASET - DATA PREPROCESSING")
 print("=" * 80)
 
 # Define column names based on the assignment description
@@ -49,63 +47,163 @@ print("\n   First 5 rows:")
 print(df.head())
 
 # ============================================================================
-# 2. DATA PREPROCESSING
+# 2. DEALING WITH MISSING DATA
 # ============================================================================
 print("\n" + "=" * 80)
-print("2. DATA PREPROCESSING")
+print("2. DEALING WITH MISSING DATA")
 print("=" * 80)
 
-# 2.1 Check for missing values
+# Check for missing values
 print("\n2.1 Checking for missing values...")
 missing_values = df.isnull().sum()
-print(f"    Total missing values: {missing_values.sum()}")
-if missing_values.sum() > 0:
-    print(missing_values[missing_values > 0])
+total_missing = missing_values.sum()
+print(f"    Total missing values: {total_missing}")
+
+if total_missing > 0:
+    print("\n    Missing values per feature:")
+    for col in missing_values[missing_values > 0].index:
+        count = missing_values[col]
+        percentage = (count / len(df)) * 100
+        print(f"    - {col}: {count} ({percentage:.2f}%)")
+
+    # Handle missing values (if any)
+    print("\n    Strategy: Fill missing values with median")
+    df_clean = df.fillna(df.median())
+    print(f"    After handling: {df_clean.isnull().sum().sum()} missing values")
 else:
     print("    No missing values found!")
+    df_clean = df.copy()
 
-# 2.2 Basic statistics
-print("\n2.2 Basic Statistics:")
-print(df.describe())
+# Visualize missing data pattern (if any existed)
+plt.figure(figsize=(12, 6))
+sns.heatmap(df.isnull(), cbar=False, yticklabels=False, cmap='viridis')
+plt.title('Missing Data Pattern (Before Cleaning)')
+plt.xlabel('Features')
+plt.ylabel('Samples')
+plt.tight_layout()
+plt.savefig('task1plt/missing_data_pattern.png', dpi=300, bbox_inches='tight')
+print("    Saved missing data pattern to 'task1plt/missing_data_pattern.png'")
 
-# 2.3 Outlier Detection using IQR method
-print("\n2.3 Outlier Detection (using IQR method)...")
+# ============================================================================
+# 3. OUTLIER DETECTION
+# ============================================================================
+print("\n" + "=" * 80)
+print("3. OUTLIER DETECTION")
+print("=" * 80)
+
+print("\n3.1 Using IQR (Interquartile Range) Method...")
+print("    Outliers defined as: Q1 - 1.5*IQR  or  Q3 + 1.5*IQR")
+
 outlier_counts = {}
-for col in df.columns:
-    Q1 = df[col].quantile(0.25)
-    Q3 = df[col].quantile(0.75)
+outlier_indices = {}
+
+for col in df_clean.columns:
+    Q1 = df_clean[col].quantile(0.25)
+    Q3 = df_clean[col].quantile(0.75)
     IQR = Q3 - Q1
     lower_bound = Q1 - 1.5 * IQR
     upper_bound = Q3 + 1.5 * IQR
-    outliers = ((df[col] < lower_bound) | (df[col] > upper_bound)).sum()
-    outlier_counts[col] = outliers
 
-print("    Outliers per feature:")
+    outliers_mask = (df_clean[col] < lower_bound) | (df_clean[col] > upper_bound)
+    outlier_counts[col] = outliers_mask.sum()
+    outlier_indices[col] = df_clean[outliers_mask].index.tolist()
+
+print("\n    Outliers detected per feature:")
+total_outliers = 0
 for col, count in outlier_counts.items():
     if count > 0:
-        print(f"    {col}: {count} outliers")
+        percentage = (count / len(df_clean)) * 100
+        print(f"    - {col}: {count} outliers ({percentage:.2f}%)")
+        total_outliers += count
 
-# For this simple implementation, we keep outliers but note them
-# In a real scenario, we might remove or transform them
-print(f"\n    Note: Keeping outliers in data for this analysis")
+print(f"\n    Total outlier instances: {total_outliers}")
+print(f"    Strategy: Keep outliers (climate extremes are valid data points)")
 
-# 2.4 Standardization
-# This is important because features have different scales
-print("\n2.4 Standardization...")
-print("    Applying StandardScaler to normalize features")
+# Visualize outliers with box plots
+fig, axes = plt.subplots(3, 6, figsize=(18, 12))
+axes = axes.flatten()
+
+for idx, col in enumerate(df_clean.columns):
+    axes[idx].boxplot(df_clean[col], vert=True)
+    axes[idx].set_title(col, fontsize=10)
+    axes[idx].set_ylabel('Value')
+    if outlier_counts[col] > 0:
+        axes[idx].set_facecolor('#fff3cd')  # Highlight if has outliers
+
+plt.suptitle('Outlier Detection - Box Plots for All Features', fontsize=14, y=0.995)
+plt.tight_layout()
+plt.savefig('task1plt/outlier_detection_boxplots.png', dpi=300, bbox_inches='tight')
+print("    Saved outlier detection plots to 'task1plt/outlier_detection_boxplots.png'")
+
+# Save outlier report
+outlier_report = pd.DataFrame({
+    'Feature': list(outlier_counts.keys()),
+    'Outlier_Count': list(outlier_counts.values()),
+    'Percentage': [(count / len(df_clean)) * 100 for count in outlier_counts.values()]
+})
+outlier_report.to_csv('task1data/outlier_report.csv', index=False)
+print("    Saved outlier report to 'task1data/outlier_report.csv'")
+
+# ============================================================================
+# 4. NORMALIZATION/STANDARDIZATION
+# ============================================================================
+print("\n" + "=" * 80)
+print("4. NORMALIZATION/STANDARDIZATION")
+print("=" * 80)
+
+print("\n4.1 Applying Standardization (Z-score normalization)...")
+print("    Formula: z = (x - μ) / σ")
+print("    This transforms data to have mean=0 and std=1")
+
+# Apply StandardScaler
 scaler = StandardScaler()
-df_scaled = scaler.fit_transform(df)
-df_scaled = pd.DataFrame(df_scaled, columns=column_names)
-print("    Standardization completed!")
-print(f"    Mean values after scaling (should be ~0): {df_scaled.mean().mean():.6f}")
-print(f"    Std values after scaling (should be ~1): {df_scaled.std().mean():.6f}")
+df_scaled_array = scaler.fit_transform(df_clean)
+df_scaled = pd.DataFrame(df_scaled_array, columns=column_names)
 
-# 2.5 Feature Selection
-print("\n2.5 Feature Selection...")
-print("    Using domain knowledge to select key features")
+print("\n    Standardization completed!")
+print(f"    Mean after scaling (should be ~0): {df_scaled.mean().mean():.6f}")
+print(f"    Std after scaling (should be ~1): {df_scaled.std().mean():.6f}")
 
-# Strategy: Select only 'Mean' values to avoid redundancy with Min/Max
-# This reduces from 18 features to 7 key features
+# Visualize before/after standardization
+fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+# Before standardization
+axes[0].boxplot([df_clean[col] for col in df_clean.columns], labels=column_names)
+axes[0].set_title('Before Standardization', fontsize=12, fontweight='bold')
+axes[0].set_ylabel('Original Scale')
+axes[0].set_xlabel('Features')
+axes[0].tick_params(axis='x', rotation=90)
+axes[0].grid(True, alpha=0.3)
+
+# After standardization
+axes[1].boxplot([df_scaled[col] for col in df_scaled.columns], labels=column_names)
+axes[1].set_title('After Standardization', fontsize=12, fontweight='bold')
+axes[1].set_ylabel('Standardized Scale (Z-score)')
+axes[1].set_xlabel('Features')
+axes[1].tick_params(axis='x', rotation=90)
+axes[1].grid(True, alpha=0.3)
+axes[1].axhline(y=0, color='r', linestyle='--', linewidth=1, alpha=0.5, label='Mean=0')
+axes[1].legend()
+
+plt.tight_layout()
+plt.savefig('task1plt/standardization_comparison.png', dpi=300, bbox_inches='tight')
+print("    Saved standardization comparison to 'task1plt/standardization_comparison.png'")
+
+# Save scaled data
+df_scaled.to_csv('task1data/data_standardized.csv', index=False)
+print("    Saved standardized data to 'task1data/data_standardized.csv'")
+
+# ============================================================================
+# 5. FEATURE SELECTION/EXTRACTION
+# ============================================================================
+print("\n" + "=" * 80)
+print("5. FEATURE SELECTION/EXTRACTION")
+print("=" * 80)
+
+# 5.1 Feature Selection using Domain Knowledge
+print("\n5.1 Feature Selection using Domain Knowledge...")
+print("    Strategy: Select only 'Mean' values to avoid redundancy with Min/Max")
+
 selected_features = [
     'Temp_Mean',
     'Humidity_Mean',
@@ -121,28 +219,20 @@ for i, feat in enumerate(selected_features, 1):
     print(f"      {i}. {feat}")
 
 # Create dataset with selected features only
-df_selected = df[selected_features]
+df_selected = df_clean[selected_features]
 df_scaled_selected = df_scaled[selected_features]
 
 print(f"\n    Reduced dimensionality: {len(column_names)} -> {len(selected_features)} features")
 print(f"    This removes redundancy (Min/Max correlated with Mean)")
 
-# Save selected features list
-pd.DataFrame({'Selected_Features': selected_features}).to_csv(
-    'task1data/selected_features.csv', index=False)
-print("    Saved selected features to 'task1data/selected_features.csv'")
-
 # Visualize feature selection
-print("\n    Creating feature selection visualization...")
 fig, ax = plt.subplots(figsize=(10, 6))
 
-# Mark which features are selected
 feature_status = ['Selected' if feat in selected_features else 'Excluded'
                   for feat in column_names]
 colors = ['green' if status == 'Selected' else 'lightgray'
           for status in feature_status]
 
-# Create bar plot
 y_pos = np.arange(len(column_names))
 ax.barh(y_pos, [1]*len(column_names), color=colors, alpha=0.7)
 ax.set_yticks(y_pos)
@@ -151,248 +241,128 @@ ax.set_xlabel('Feature Status')
 ax.set_title(f'Feature Selection: {len(selected_features)} of {len(column_names)} Features Selected')
 ax.set_xticks([])
 
-# Add legend
 from matplotlib.patches import Patch
 legend_elements = [Patch(facecolor='green', alpha=0.7, label=f'Selected ({len(selected_features)})'),
                    Patch(facecolor='lightgray', alpha=0.7, label=f'Excluded ({len(column_names) - len(selected_features)})')]
 ax.legend(handles=legend_elements, loc='lower right')
 
-# Add annotation
-ax.text(0.5, -0.5, 'Strategy: Keep Mean values, exclude Min/Max to reduce redundancy',
+ax.text(0.5, -0.05, 'Strategy: Keep Mean values, exclude Min/Max to reduce redundancy',
         transform=ax.transAxes, ha='center', fontsize=10, style='italic')
 
 plt.tight_layout()
 plt.savefig('task1plt/feature_selection.png', dpi=300, bbox_inches='tight')
 print("    Saved feature selection plot to 'task1plt/feature_selection.png'")
 
-# 2.6 PCA for Visualization
-print("\n2.6 PCA for Visualization...")
-print(f"    Reducing {len(selected_features)} selected features to 2 for visualization")
-pca = PCA(n_components=2)
-df_pca = pca.fit_transform(df_scaled_selected.values)
-print(f"    Explained variance ratio: {pca.explained_variance_ratio_}")
-print(f"    Total variance explained: {sum(pca.explained_variance_ratio_):.2%}")
+# Save selected features
+pd.DataFrame({'Selected_Features': selected_features}).to_csv(
+    'task1data/selected_features.csv', index=False)
+print("    Saved selected features to 'task1data/selected_features.csv'")
 
-# ============================================================================
-# 3. CLUSTERING ALGORITHM 1: K-MEANS
-# ============================================================================
-print("\n" + "=" * 80)
-print("3. CLUSTERING ALGORITHM 1: K-MEANS")
-print("=" * 80)
+# 5.2 Feature Extraction using PCA
+print("\n5.2 Feature Extraction using PCA...")
+print(f"    Applying PCA to extract principal components from {len(selected_features)} selected features")
 
-print("\nK-Means is a simple and popular clustering algorithm.")
-print("It partitions data into K clusters by minimizing within-cluster variance.")
-print(f"Using selected {len(selected_features)} features for clustering.")
+pca_full = PCA()
+pca_full.fit(df_scaled_selected.values)
 
-# 3.1 Determine optimal number of clusters using Elbow Method
-print("\n3.1 Finding optimal number of clusters (Elbow Method)...")
-inertias = []
-silhouette_scores = []
-K_range = range(2, 11)
+cumulative_variance = np.cumsum(pca_full.explained_variance_ratio_)
+n_components_95 = np.argmax(cumulative_variance >= 0.95) + 1
 
-for k in K_range:
-    kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
-    kmeans.fit(df_scaled_selected)
-    inertias.append(kmeans.inertia_)
-    silhouette_scores.append(silhouette_score(df_scaled_selected, kmeans.labels_))
+print(f"\n    Total components: {len(selected_features)}")
+print(f"    Components for 95% variance: {n_components_95}")
+print(f"    Variance explained by each PC:")
+for i, var in enumerate(pca_full.explained_variance_ratio_, 1):
+    print(f"      PC{i}: {var:.4f} ({var*100:.2f}%)")
 
-# Plot elbow curve
-plt.figure(figsize=(12, 4))
-plt.subplot(1, 2, 1)
-plt.plot(K_range, inertias, 'bo-')
-plt.xlabel('Number of Clusters (K)')
-plt.ylabel('Inertia')
-plt.title('Elbow Method')
-plt.grid(True)
+# Visualize PCA results
+fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
-plt.subplot(1, 2, 2)
-plt.plot(K_range, silhouette_scores, 'ro-')
-plt.xlabel('Number of Clusters (K)')
-plt.ylabel('Silhouette Score')
-plt.title('Silhouette Score vs K')
-plt.grid(True)
-plt.tight_layout()
-plt.savefig('task1plt/kmeans_elbow_method.png', dpi=300, bbox_inches='tight')
-print("    Saved elbow method plot to 'task1plt/kmeans_elbow_method.png'")
-
-# 3.2 Apply K-Means with optimal K (choosing K=3 as reasonable choice)
-optimal_k = 3
-print(f"\n3.2 Applying K-Means with K={optimal_k}...")
-kmeans = KMeans(n_clusters=optimal_k, random_state=42, n_init=10)
-kmeans_labels = kmeans.fit_predict(df_scaled_selected)
-
-# Evaluate K-Means
-kmeans_silhouette = silhouette_score(df_scaled_selected, kmeans_labels)
-kmeans_db = davies_bouldin_score(df_scaled_selected, kmeans_labels)
-
-print(f"    K-Means Results:")
-print(f"    - Silhouette Score: {kmeans_silhouette:.4f} (higher is better, range: -1 to 1)")
-print(f"    - Davies-Bouldin Index: {kmeans_db:.4f} (lower is better)")
-print(f"    - Cluster sizes: {np.bincount(kmeans_labels)}")
-
-# ============================================================================
-# 4. CLUSTERING ALGORITHM 2: DBSCAN
-# ============================================================================
-print("\n" + "=" * 80)
-print("4. CLUSTERING ALGORITHM 2: DBSCAN")
-print("=" * 80)
-
-print("\nDBSCAN (Density-Based Spatial Clustering) is different from K-Means.")
-print("It can find clusters of arbitrary shape and identify outliers as noise.")
-print(f"Using selected {len(selected_features)} features for clustering.")
-
-# 4.1 Apply DBSCAN
-# Parameters chosen through simple experimentation
-print("\n4.1 Applying DBSCAN...")
-print("    Parameters: eps=2.5, min_samples=10")
-dbscan = DBSCAN(eps=2.5, min_samples=10)
-dbscan_labels = dbscan.fit_predict(df_scaled_selected)
-
-# Count clusters and noise points
-n_clusters_dbscan = len(set(dbscan_labels)) - (1 if -1 in dbscan_labels else 0)
-n_noise = list(dbscan_labels).count(-1)
-
-print(f"\n    DBSCAN Results:")
-print(f"    - Number of clusters found: {n_clusters_dbscan}")
-print(f"    - Number of noise points: {n_noise}")
-print(f"    - Cluster sizes: {np.bincount(dbscan_labels[dbscan_labels >= 0])}")
-
-# Evaluate DBSCAN (only if we have more than 1 cluster and not all noise)
-if n_clusters_dbscan > 1 and n_noise < len(dbscan_labels):
-    # Filter out noise points for evaluation
-    valid_mask = dbscan_labels != -1
-    if valid_mask.sum() > 0:
-        dbscan_silhouette = silhouette_score(df_scaled_selected.values[valid_mask], dbscan_labels[valid_mask])
-        dbscan_db = davies_bouldin_score(df_scaled_selected.values[valid_mask], dbscan_labels[valid_mask])
-        print(f"    - Silhouette Score: {dbscan_silhouette:.4f} (excluding noise)")
-        print(f"    - Davies-Bouldin Index: {dbscan_db:.4f} (excluding noise)")
-    else:
-        print("    - Cannot compute metrics: all points are noise")
-else:
-    print("    - Cannot compute metrics: only 1 cluster or all noise")
-
-# ============================================================================
-# 5. VISUALIZATION
-# ============================================================================
-print("\n" + "=" * 80)
-print("5. VISUALIZATION")
-print("=" * 80)
-
-# 5.1 Visualize clusters in 2D PCA space
-print("\n5.1 Creating cluster visualizations...")
-
-fig, axes = plt.subplots(1, 2, figsize=(15, 6))
-
-# K-Means visualization
-axes[0].scatter(df_pca[:, 0], df_pca[:, 1], c=kmeans_labels, cmap='viridis', alpha=0.6, s=50)
-axes[0].scatter(pca.transform(kmeans.cluster_centers_)[:, 0],
-                pca.transform(kmeans.cluster_centers_)[:, 1],
-                c='red', marker='X', s=200, label='Centroids', edgecolors='black')
-axes[0].set_xlabel('First Principal Component')
-axes[0].set_ylabel('Second Principal Component')
-axes[0].set_title(f'K-Means Clustering (K={optimal_k})\nSilhouette: {kmeans_silhouette:.3f}')
+# Scree plot
+axes[0].bar(range(1, len(pca_full.explained_variance_ratio_) + 1),
+            pca_full.explained_variance_ratio_, alpha=0.7, color='steelblue',
+            label='Individual')
+axes[0].plot(range(1, len(cumulative_variance) + 1),
+             cumulative_variance, 'ro-', linewidth=2, label='Cumulative')
+axes[0].axhline(y=0.95, color='g', linestyle='--', label='95% threshold')
+axes[0].set_xlabel('Principal Component')
+axes[0].set_ylabel('Explained Variance Ratio')
+axes[0].set_title('Scree Plot - PCA Explained Variance')
 axes[0].legend()
 axes[0].grid(True, alpha=0.3)
+axes[0].set_xticks(range(1, len(pca_full.explained_variance_ratio_) + 1))
 
-# DBSCAN visualization
-scatter = axes[1].scatter(df_pca[:, 0], df_pca[:, 1], c=dbscan_labels, cmap='viridis', alpha=0.6, s=50)
-axes[1].set_xlabel('First Principal Component')
-axes[1].set_ylabel('Second Principal Component')
-title_text = f'DBSCAN Clustering\n{n_clusters_dbscan} clusters, {n_noise} noise points'
-axes[1].set_title(title_text)
-axes[1].grid(True, alpha=0.3)
+# Component loadings heatmap
+loadings = pca_full.components_.T
+loadings_df = pd.DataFrame(
+    loadings,
+    columns=[f'PC{i+1}' for i in range(len(selected_features))],
+    index=selected_features
+)
 
-plt.tight_layout()
-plt.savefig('task1plt/clustering_results.png', dpi=300, bbox_inches='tight')
-print("    Saved clustering visualization to 'task1plt/clustering_results.png'")
-
-# 5.2 Feature importance analysis for K-Means
-print("\n5.2 Analyzing cluster characteristics...")
-
-# Add cluster labels to original dataframe
-df_with_clusters = df.copy()
-df_with_clusters['KMeans_Cluster'] = kmeans_labels
-
-# Calculate mean values for each cluster
-cluster_means = df_with_clusters.groupby('KMeans_Cluster').mean()
-print("\n    Mean values per cluster (K-Means):")
-print(cluster_means)
-
-# Visualize cluster characteristics
-fig, axes = plt.subplots(2, 1, figsize=(14, 10))
-
-# Heatmap of cluster means
-sns.heatmap(cluster_means.T, annot=True, fmt='.2f', cmap='coolwarm', ax=axes[0], cbar_kws={'label': 'Value'})
-axes[0].set_title('K-Means Cluster Characteristics (Mean Values per Feature)')
-axes[0].set_xlabel('Cluster')
-axes[0].set_ylabel('Feature')
-
-# Box plots for selected features
-selected_features = ['Temp_Mean', 'Humidity_Mean', 'Pressure_Mean', 'Precipitation']
-df_melted = df_with_clusters.melt(id_vars=['KMeans_Cluster'], value_vars=selected_features)
-sns.boxplot(data=df_melted, x='variable', y='value', hue='KMeans_Cluster', ax=axes[1])
-axes[1].set_title('Distribution of Key Features by Cluster')
-axes[1].set_xlabel('Feature')
-axes[1].set_ylabel('Value')
-axes[1].legend(title='Cluster')
-plt.xticks(rotation=45)
+sns.heatmap(loadings_df, annot=True, fmt='.2f', cmap='coolwarm', center=0,
+            ax=axes[1], cbar_kws={'label': 'Loading'})
+axes[1].set_title('PCA Component Loadings')
+axes[1].set_xlabel('Principal Components')
+axes[1].set_ylabel('Features')
 
 plt.tight_layout()
-plt.savefig('task1plt/cluster_characteristics.png', dpi=300, bbox_inches='tight')
-print("    Saved cluster characteristics to 'task1plt/cluster_characteristics.png'")
+plt.savefig('task1plt/pca_analysis.png', dpi=300, bbox_inches='tight')
+print("    Saved PCA analysis to 'task1plt/pca_analysis.png'")
 
-# 5.3 Save clustering results to CSV
-print("\n5.3 Saving clustering results to CSV...")
+# Apply PCA transformation
+pca_transformed = pca_full.transform(df_scaled_selected.values)
+pca_df = pd.DataFrame(
+    pca_transformed,
+    columns=[f'PC{i+1}' for i in range(len(selected_features))]
+)
 
-# Save original data with cluster labels
-df_with_clusters['DBSCAN_Cluster'] = dbscan_labels
-df_with_clusters.to_csv('task1data/clustering_results.csv', index=False)
-print("    Saved clustering results to 'task1data/clustering_results.csv'")
+# Save PCA results
+pca_df.to_csv('task1data/pca_transformed_data.csv', index=False)
+print("    Saved PCA transformed data to 'task1data/pca_transformed_data.csv'")
 
-# Save cluster statistics
-cluster_stats = df_with_clusters.groupby('KMeans_Cluster').agg(['mean', 'std', 'min', 'max'])
-cluster_stats.to_csv('task1data/cluster_statistics.csv')
-print("    Saved cluster statistics to 'task1data/cluster_statistics.csv'")
+loadings_df.to_csv('task1data/pca_loadings.csv')
+print("    Saved PCA loadings to 'task1data/pca_loadings.csv'")
 
 # ============================================================================
-# 6. COMPARISON AND CONCLUSIONS
+# SUMMARY
 # ============================================================================
 print("\n" + "=" * 80)
-print("6. ALGORITHM COMPARISON AND SUMMARY")
+print("DATA PREPROCESSING COMPLETE!")
 print("=" * 80)
 
-print("\nComparison of Clustering Algorithms:")
-print("-" * 50)
-print(f"K-Means:")
-print(f"  - Clusters: {optimal_k}")
-print(f"  - Silhouette Score: {kmeans_silhouette:.4f}")
-print(f"  - Davies-Bouldin Index: {kmeans_db:.4f}")
-print(f"  - Advantages: Simple, fast, works well with spherical clusters")
-print(f"  - Limitations: Requires specifying K, assumes spherical clusters")
+print("\nPreprocessing Summary:")
+print(f"  1. Missing Data:")
+print(f"     - Total missing values: {total_missing}")
+print(f"     - Strategy: {'Filled with median' if total_missing > 0 else 'None needed'}")
 
-print(f"\nDBSCAN:")
-print(f"  - Clusters: {n_clusters_dbscan}")
-print(f"  - Noise points: {n_noise}")
-if n_clusters_dbscan > 1 and n_noise < len(dbscan_labels) and valid_mask.sum() > 0:
-    print(f"  - Silhouette Score: {dbscan_silhouette:.4f}")
-    print(f"  - Davies-Bouldin Index: {dbscan_db:.4f}")
-print(f"  - Advantages: Finds arbitrary shapes, identifies outliers")
-print(f"  - Limitations: Sensitive to parameters, struggles with varying densities")
+print(f"\n  2. Outlier Detection:")
+print(f"     - Total outlier instances: {total_outliers}")
+print(f"     - Strategy: Kept (climate extremes are valid)")
 
-print("\n" + "=" * 80)
-print("ANALYSIS COMPLETE!")
-print("\nFeature Selection Summary:")
-print(f"  - Original features: {len(column_names)}")
-print(f"  - Selected features: {len(selected_features)}")
-print("  - Selected: " + ", ".join(selected_features))
-print("\nGenerated files:")
+print(f"\n  3. Standardization:")
+print(f"     - Method: StandardScaler (Z-score)")
+print(f"     - Result: Mean ≈ 0, Std ≈ 1")
+
+print(f"\n  4. Feature Selection:")
+print(f"     - Original features: {len(column_names)}")
+print(f"     - Selected features: {len(selected_features)}")
+print(f"     - Selected: {', '.join(selected_features)}")
+
+print(f"\n  5. Feature Extraction (PCA):")
+print(f"     - Components for 95% variance: {n_components_95}/{len(selected_features)}")
+print(f"     - Total variance by PC1: {pca_full.explained_variance_ratio_[0]*100:.2f}%")
+
+print("\nGenerated Files:")
 print("  Plots:")
+print("    - task1plt/missing_data_pattern.png")
+print("    - task1plt/outlier_detection_boxplots.png")
+print("    - task1plt/standardization_comparison.png")
 print("    - task1plt/feature_selection.png")
-print("    - task1plt/kmeans_elbow_method.png")
-print("    - task1plt/clustering_results.png")
-print("    - task1plt/cluster_characteristics.png")
-print("  Data:")
+print("    - task1plt/pca_analysis.png")
+print("\n  Data:")
+print("    - task1data/outlier_report.csv")
+print("    - task1data/data_standardized.csv")
 print("    - task1data/selected_features.csv")
-print("    - task1data/clustering_results.csv")
-print("    - task1data/cluster_statistics.csv")
+print("    - task1data/pca_transformed_data.csv")
+print("    - task1data/pca_loadings.csv")
 print("=" * 80)
