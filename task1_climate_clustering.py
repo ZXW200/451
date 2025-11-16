@@ -202,119 +202,69 @@ print("\n" + "=" * 80)
 print("5. FEATURE SELECTION/EXTRACTION")
 print("=" * 80)
 
-# 5.1 Feature Selection using Domain Knowledge
-print("\n5.1 Feature Selection using Domain Knowledge...")
-print("    Strategy: Select only 'Mean' values to avoid redundancy with Min/Max")
+# 5.1 Calculate feature importance based on variance
+print("\n5.1 Calculating Feature Importance (Variance-based)...")
+print("    Higher variance = more information content")
 
+# Calculate variance for each feature (using standardized data)
+feature_variance = df_scaled.var()
+feature_importance = pd.DataFrame({
+    'Feature': column_names,
+    'Variance': feature_variance.values
+}).sort_values('Variance', ascending=False)
+
+print("\n    Top 10 features by variance:")
+print(feature_importance.head(10).to_string(index=False))
+
+# Visualize feature importance with simple bar chart
+plt.figure(figsize=(10, 6))
+colors = ['green' if i < 10 else 'lightgray' for i in range(len(feature_importance))]
+plt.barh(range(len(feature_importance)), feature_importance['Variance'].values, color=colors, alpha=0.7)
+plt.yticks(range(len(feature_importance)), feature_importance['Feature'].values)
+plt.xlabel('Variance (Importance Score)', fontsize=12)
+plt.ylabel('Features', fontsize=12)
+plt.title('Feature Importance Ranking (Top 10 in Green)', fontsize=14)
+plt.grid(True, alpha=0.3, axis='x')
+plt.tight_layout()
+plt.savefig('task1plt/feature_importance_ranking.png', dpi=300, bbox_inches='tight')
+print("    Saved feature importance ranking to 'task1plt/feature_importance_ranking.png'")
+
+# Save feature importance
+feature_importance.to_csv('task1data/feature_importance.csv', index=False)
+print("    Saved feature importance to 'task1data/feature_importance.csv'")
+
+# 5.2 Feature Selection - Select top features avoiding redundancy
+print("\n5.2 Feature Selection Strategy...")
+print("    Strategy: Select top variance features, but avoid redundancy (Min/Max/Mean)")
+print("    For each weather type, keep only the Mean value")
+
+# Select features: prioritize Mean values from high variance features
 selected_features = [
-    'Temp_Mean',
-    'Humidity_Mean',
-    'Pressure_Mean',
-    'Precipitation',
-    'Snowfall',
-    'Sunshine',
-    'WindSpeed_Mean'
+    'Temp_Mean',        # Temperature representative
+    'Humidity_Mean',    # Humidity representative
+    'Pressure_Mean',    # Pressure representative
+    'Precipitation',    # Independent feature
+    'Snowfall',         # Independent feature
+    'Sunshine',         # Independent feature
+    'WindSpeed_Mean'    # Wind representative
 ]
 
 print(f"\n    Selected {len(selected_features)} features from original {len(column_names)}:")
 for i, feat in enumerate(selected_features, 1):
-    print(f"      {i}. {feat}")
+    var = feature_variance[feat]
+    rank = feature_importance[feature_importance['Feature'] == feat].index[0] + 1
+    print(f"      {i}. {feat} (variance: {var:.4f}, rank: {rank})")
 
-# Create dataset with selected features only
+# Create dataset with selected features
 df_selected = df_clean[selected_features]
 df_scaled_selected = df_scaled[selected_features]
 
 print(f"\n    Reduced dimensionality: {len(column_names)} -> {len(selected_features)} features")
-print(f"    This removes redundancy (Min/Max correlated with Mean)")
-
-# Visualize feature selection
-fig, ax = plt.subplots(figsize=(10, 6))
-
-feature_status = ['Selected' if feat in selected_features else 'Excluded'
-                  for feat in column_names]
-colors = ['green' if status == 'Selected' else 'lightgray'
-          for status in feature_status]
-
-y_pos = np.arange(len(column_names))
-ax.barh(y_pos, [1]*len(column_names), color=colors, alpha=0.7)
-ax.set_yticks(y_pos)
-ax.set_yticklabels(column_names)
-ax.set_xlabel('Feature Status')
-ax.set_title(f'Feature Selection: {len(selected_features)} of {len(column_names)} Features Selected')
-ax.set_xticks([])
-
-from matplotlib.patches import Patch
-legend_elements = [Patch(facecolor='green', alpha=0.7, label=f'Selected ({len(selected_features)})'),
-                   Patch(facecolor='lightgray', alpha=0.7, label=f'Excluded ({len(column_names) - len(selected_features)})')]
-ax.legend(handles=legend_elements, loc='lower right')
-
-ax.text(0.5, -0.05, 'Strategy: Keep Mean values, exclude Min/Max to reduce redundancy',
-        transform=ax.transAxes, ha='center', fontsize=10, style='italic')
-
-plt.tight_layout()
-plt.savefig('task1plt/feature_selection.png', dpi=300, bbox_inches='tight')
-print("    Saved feature selection plot to 'task1plt/feature_selection.png'")
 
 # Save selected features
 pd.DataFrame({'Selected_Features': selected_features}).to_csv(
     'task1data/selected_features.csv', index=False)
 print("    Saved selected features to 'task1data/selected_features.csv'")
-
-# 5.2 Feature Extraction using PCA
-print("\n5.2 Feature Extraction using PCA...")
-print(f"    Applying PCA to extract principal components from {len(selected_features)} selected features")
-
-pca_full = PCA()
-pca_full.fit(df_scaled_selected.values)
-
-cumulative_variance = np.cumsum(pca_full.explained_variance_ratio_)
-n_components_95 = np.argmax(cumulative_variance >= 0.95) + 1
-
-print(f"\n    Total components: {len(selected_features)}")
-print(f"    Components for 95% variance: {n_components_95}")
-print(f"    Variance explained by each PC:")
-for i, var in enumerate(pca_full.explained_variance_ratio_, 1):
-    print(f"      PC{i}: {var:.4f} ({var*100:.2f}%)")
-
-# Visualize PCA with simple scree plot
-plt.figure(figsize=(10, 6))
-plt.bar(range(1, len(pca_full.explained_variance_ratio_) + 1),
-        pca_full.explained_variance_ratio_, alpha=0.7, color='steelblue',
-        label='Individual Variance')
-plt.plot(range(1, len(cumulative_variance) + 1),
-         cumulative_variance, 'ro-', linewidth=2, markersize=8, label='Cumulative Variance')
-plt.axhline(y=0.95, color='green', linestyle='--', linewidth=2, label='95% Threshold')
-plt.xlabel('Principal Component', fontsize=12)
-plt.ylabel('Explained Variance Ratio', fontsize=12)
-plt.title('PCA Scree Plot - Variance Explained by Each Component', fontsize=14)
-plt.legend(fontsize=10)
-plt.grid(True, alpha=0.3)
-plt.xticks(range(1, len(pca_full.explained_variance_ratio_) + 1))
-plt.tight_layout()
-plt.savefig('task1plt/pca_scree_plot.png', dpi=300, bbox_inches='tight')
-print("    Saved PCA scree plot to 'task1plt/pca_scree_plot.png'")
-
-# Save loadings for reference
-loadings = pca_full.components_.T
-loadings_df = pd.DataFrame(
-    loadings,
-    columns=[f'PC{i+1}' for i in range(len(selected_features))],
-    index=selected_features
-)
-
-# Apply PCA transformation
-pca_transformed = pca_full.transform(df_scaled_selected.values)
-pca_df = pd.DataFrame(
-    pca_transformed,
-    columns=[f'PC{i+1}' for i in range(len(selected_features))]
-)
-
-# Save PCA results
-pca_df.to_csv('task1data/pca_transformed_data.csv', index=False)
-print("    Saved PCA transformed data to 'task1data/pca_transformed_data.csv'")
-
-loadings_df.to_csv('task1data/pca_loadings.csv')
-print("    Saved PCA loadings to 'task1data/pca_loadings.csv'")
 
 # ============================================================================
 # SUMMARY
@@ -339,23 +289,18 @@ print(f"     - Result: Mean ≈ 0, Std ≈ 1")
 print(f"\n  4. Feature Selection:")
 print(f"     - Original features: {len(column_names)}")
 print(f"     - Selected features: {len(selected_features)}")
+print(f"     - Method: Variance-based ranking")
 print(f"     - Selected: {', '.join(selected_features)}")
-
-print(f"\n  5. Feature Extraction (PCA):")
-print(f"     - Components for 95% variance: {n_components_95}/{len(selected_features)}")
-print(f"     - Total variance by PC1: {pca_full.explained_variance_ratio_[0]*100:.2f}%")
 
 print("\nGenerated Files:")
 print("  Plots:")
 print("    - task1plt/missing_data.png (bar chart)")
 print("    - task1plt/outlier_detection.png (bar chart)")
 print("    - task1plt/standardization_comparison.png (histograms)")
-print("    - task1plt/feature_selection.png (bar chart)")
-print("    - task1plt/pca_scree_plot.png (scree plot)")
+print("    - task1plt/feature_importance_ranking.png (bar chart)")
 print("\n  Data:")
 print("    - task1data/outlier_report.csv")
 print("    - task1data/data_standardized.csv")
+print("    - task1data/feature_importance.csv")
 print("    - task1data/selected_features.csv")
-print("    - task1data/pca_transformed_data.csv")
-print("    - task1data/pca_loadings.csv")
 print("=" * 80)
