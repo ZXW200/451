@@ -74,18 +74,6 @@ else:
     print("    No missing values found!")
     df_clean = df.copy()
 
-# Visualize missing data with simple bar chart
-plt.figure(figsize=(10, 5))
-plt.bar(range(len(missing_values)), missing_values.values, color='steelblue', alpha=0.7)
-plt.xticks(range(len(missing_values)), missing_values.index, rotation=90)
-plt.xlabel('Features')
-plt.ylabel('Number of Missing Values')
-plt.title('Missing Values per Feature')
-plt.grid(True, alpha=0.3, axis='y')
-plt.tight_layout()
-plt.savefig('task1plt/missing_data.png', dpi=300, bbox_inches='tight')
-print("    Saved missing data chart to 'task1plt/missing_data.png'")
-
 # ============================================================================
 # 3. OUTLIER DETECTION
 # ============================================================================
@@ -120,19 +108,6 @@ for col, count in outlier_counts.items():
 
 print(f"\n    Total outlier instances: {total_outliers}")
 print(f"    Strategy: Keep outliers (climate extremes are valid data points)")
-
-# Visualize outliers with simple bar chart
-plt.figure(figsize=(10, 5))
-colors = ['red' if count > 0 else 'steelblue' for count in outlier_counts.values()]
-plt.bar(range(len(outlier_counts)), outlier_counts.values(), color=colors, alpha=0.7)
-plt.xticks(range(len(outlier_counts)), outlier_counts.keys(), rotation=90)
-plt.xlabel('Features')
-plt.ylabel('Number of Outliers')
-plt.title('Outliers Detected per Feature (IQR Method)')
-plt.grid(True, alpha=0.3, axis='y')
-plt.tight_layout()
-plt.savefig('task1plt/outlier_detection.png', dpi=300, bbox_inches='tight')
-print("    Saved outlier detection chart to 'task1plt/outlier_detection.png'")
 
 # Save outlier report
 outlier_report = pd.DataFrame({
@@ -217,23 +192,6 @@ feature_importance = pd.DataFrame({
 print("\n    Top 10 features by variance:")
 print(feature_importance.head(10).to_string(index=False))
 
-# Visualize feature importance with simple bar chart (will mark selected ones after selection)
-plt.figure(figsize=(10, 6))
-plt.barh(range(len(feature_importance)), feature_importance['Variance'].values,
-         color='steelblue', alpha=0.7)
-plt.yticks(range(len(feature_importance)), feature_importance['Feature'].values, fontsize=9)
-plt.xlabel('Variance (Importance Score)', fontsize=12)
-plt.ylabel('Features', fontsize=12)
-plt.title('Feature Importance Ranking by Variance', fontsize=14)
-plt.grid(True, alpha=0.3, axis='x')
-plt.tight_layout()
-plt.savefig('task1plt/feature_importance_ranking.png', dpi=300, bbox_inches='tight')
-print("    Saved feature importance ranking to 'task1plt/feature_importance_ranking.png'")
-
-# Save feature importance
-feature_importance.to_csv('task1data/feature_importance.csv', index=False)
-print("    Saved feature importance to 'task1data/feature_importance.csv'")
-
 # 5.2 Feature Selection - Select top 7 features by variance
 print("\n5.2 Feature Selection Strategy...")
 print("    Strategy: Select top 7 features by variance (highest information content)")
@@ -247,26 +205,44 @@ for i, feat in enumerate(selected_features, 1):
     var = feature_variance[feat]
     print(f"      {i}. {feat} (variance: {var:.4f})")
 
+# Visualize why these features were selected - show actual data distributions
+fig, axes = plt.subplots(3, 6, figsize=(18, 10))
+axes = axes.flatten()
+
+for idx, feat in enumerate(column_names):
+    ax = axes[idx]
+
+    # Plot data distribution for each feature
+    ax.hist(df_clean[feat], bins=25, color='steelblue', alpha=0.7, edgecolor='black')
+
+    # Highlight selected features
+    if feat in selected_features:
+        ax.set_facecolor('#e8f5e9')  # Light green background
+        ax.set_title(f'{feat}\n✓ SELECTED\nVar={feature_variance[feat]:.3f}',
+                    fontsize=8, fontweight='bold', color='green')
+    else:
+        ax.set_title(f'{feat}\nVar={feature_variance[feat]:.3f}',
+                    fontsize=8, color='gray')
+
+    ax.tick_params(labelsize=6)
+    ax.grid(True, alpha=0.3)
+
+plt.suptitle('Feature Selection: Data Distribution & Variance\n(Green background = Selected top 7 by variance)',
+             fontsize=14, fontweight='bold')
+plt.tight_layout()
+plt.savefig('task1plt/feature_selection_data.png', dpi=300, bbox_inches='tight')
+print("    Saved feature selection visualization to 'task1plt/feature_selection_data.png'")
+
 # Create dataset with selected features
 df_selected = df_clean[selected_features]
 df_scaled_selected = df_scaled[selected_features]
 
 print(f"\n    Reduced dimensionality: {len(column_names)} -> {len(selected_features)} features")
 
-# Visualize selected features
-plt.figure(figsize=(10, 6))
-colors = ['green' if feat in selected_features else 'lightgray' for feat in feature_importance['Feature']]
-plt.barh(range(len(feature_importance)), feature_importance['Variance'].values, color=colors, alpha=0.7)
-plt.yticks(range(len(feature_importance)), feature_importance['Feature'].values, fontsize=9)
-plt.xlabel('Variance (Importance Score)', fontsize=12)
-plt.ylabel('Features', fontsize=12)
-plt.title(f'Feature Selection: Top {top_n} by Variance (Green)', fontsize=14)
-plt.grid(True, alpha=0.3, axis='x')
-plt.tight_layout()
-plt.savefig('task1plt/feature_selection.png', dpi=300, bbox_inches='tight')
-print("    Saved feature selection to 'task1plt/feature_selection.png'")
+# Save feature importance and selected features
+feature_importance.to_csv('task1data/feature_importance.csv', index=False)
+print("    Saved feature importance to 'task1data/feature_importance.csv'")
 
-# Save selected features
 pd.DataFrame({'Selected_Features': selected_features}).to_csv(
     'task1data/selected_features.csv', index=False)
 print("    Saved selected features to 'task1data/selected_features.csv'")
@@ -299,11 +275,8 @@ print(f"     - Selected: {', '.join(selected_features)}")
 
 print("\nGenerated Files:")
 print("  Plots:")
-print("    - task1plt/missing_data.png (bar chart)")
-print("    - task1plt/outlier_detection.png (bar chart)")
-print("    - task1plt/standardization_comparison.png (all 18 features histograms)")
-print("    - task1plt/feature_importance_ranking.png (variance ranking)")
-print("    - task1plt/feature_selection.png (top 7 selected)")
+print("    - task1plt/standardization_comparison.png (before/after standardization)")
+print("    - task1plt/feature_selection_data.png (data distributions with variance)")
 print("\n  Data:")
 print("    - task1data/outlier_report.csv")
 print("    - task1data/data_standardized.csv")
