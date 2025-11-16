@@ -12,9 +12,14 @@ from sklearn.cluster import KMeans, DBSCAN
 from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_score, davies_bouldin_score
 import seaborn as sns
+import os
 
 # Set random seed for reproducibility
 np.random.seed(42)
+
+# Create output directories
+os.makedirs('task1data', exist_ok=True)
+os.makedirs('task1plt', exist_ok=True)
 
 # ============================================================================
 # 1. DATA LOADING
@@ -141,8 +146,8 @@ plt.ylabel('Silhouette Score')
 plt.title('Silhouette Score vs K')
 plt.grid(True)
 plt.tight_layout()
-plt.savefig('kmeans_elbow_method.png', dpi=300, bbox_inches='tight')
-print("    Saved elbow method plot to 'kmeans_elbow_method.png'")
+plt.savefig('task1plt/kmeans_elbow_method.png', dpi=300, bbox_inches='tight')
+print("    Saved elbow method plot to 'task1plt/kmeans_elbow_method.png'")
 
 # 3.2 Apply K-Means with optimal K (choosing K=3 as reasonable choice)
 optimal_k = 3
@@ -231,8 +236,8 @@ axes[1].set_title(title_text)
 axes[1].grid(True, alpha=0.3)
 
 plt.tight_layout()
-plt.savefig('clustering_results.png', dpi=300, bbox_inches='tight')
-print("    Saved clustering visualization to 'clustering_results.png'")
+plt.savefig('task1plt/clustering_results.png', dpi=300, bbox_inches='tight')
+print("    Saved clustering visualization to 'task1plt/clustering_results.png'")
 
 # 5.2 Feature importance analysis for K-Means
 print("\n5.2 Analyzing cluster characteristics...")
@@ -266,8 +271,21 @@ axes[1].legend(title='Cluster')
 plt.xticks(rotation=45)
 
 plt.tight_layout()
-plt.savefig('cluster_characteristics.png', dpi=300, bbox_inches='tight')
-print("    Saved cluster characteristics to 'cluster_characteristics.png'")
+plt.savefig('task1plt/cluster_characteristics.png', dpi=300, bbox_inches='tight')
+print("    Saved cluster characteristics to 'task1plt/cluster_characteristics.png'")
+
+# 5.3 Save clustering results to CSV
+print("\n5.3 Saving clustering results to CSV...")
+
+# Save original data with cluster labels
+df_with_clusters['DBSCAN_Cluster'] = dbscan_labels
+df_with_clusters.to_csv('task1data/clustering_results.csv', index=False)
+print("    Saved clustering results to 'task1data/clustering_results.csv'")
+
+# Save cluster statistics
+cluster_stats = df_with_clusters.groupby('KMeans_Cluster').agg(['mean', 'std', 'min', 'max'])
+cluster_stats.to_csv('task1data/cluster_statistics.csv')
+print("    Saved cluster statistics to 'task1data/cluster_statistics.csv'")
 
 # ============================================================================
 # 6. COMPARISON AND CONCLUSIONS
@@ -297,7 +315,11 @@ print(f"  - Limitations: Sensitive to parameters, struggles with varying densiti
 print("\n" + "=" * 80)
 print("ANALYSIS COMPLETE!")
 print("Generated files:")
-print("  - kmeans_elbow_method.png")
-print("  - clustering_results.png")
-print("  - cluster_characteristics.png")
+print("  Plots:")
+print("    - task1plt/kmeans_elbow_method.png")
+print("    - task1plt/clustering_results.png")
+print("    - task1plt/cluster_characteristics.png")
+print("  Data:")
+print("    - task1data/clustering_results.csv")
+print("    - task1data/cluster_statistics.csv")
 print("=" * 80)
