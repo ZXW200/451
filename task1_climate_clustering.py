@@ -74,15 +74,17 @@ else:
     print("    No missing values found!")
     df_clean = df.copy()
 
-# Visualize missing data pattern (if any existed)
-plt.figure(figsize=(12, 6))
-sns.heatmap(df.isnull(), cbar=False, yticklabels=False, cmap='viridis')
-plt.title('Missing Data Pattern (Before Cleaning)')
+# Visualize missing data with simple bar chart
+plt.figure(figsize=(10, 5))
+plt.bar(range(len(missing_values)), missing_values.values, color='steelblue', alpha=0.7)
+plt.xticks(range(len(missing_values)), missing_values.index, rotation=90)
 plt.xlabel('Features')
-plt.ylabel('Samples')
+plt.ylabel('Number of Missing Values')
+plt.title('Missing Values per Feature')
+plt.grid(True, alpha=0.3, axis='y')
 plt.tight_layout()
-plt.savefig('task1plt/missing_data_pattern.png', dpi=300, bbox_inches='tight')
-print("    Saved missing data pattern to 'task1plt/missing_data_pattern.png'")
+plt.savefig('task1plt/missing_data.png', dpi=300, bbox_inches='tight')
+print("    Saved missing data chart to 'task1plt/missing_data.png'")
 
 # ============================================================================
 # 3. OUTLIER DETECTION
@@ -119,21 +121,18 @@ for col, count in outlier_counts.items():
 print(f"\n    Total outlier instances: {total_outliers}")
 print(f"    Strategy: Keep outliers (climate extremes are valid data points)")
 
-# Visualize outliers with box plots
-fig, axes = plt.subplots(3, 6, figsize=(18, 12))
-axes = axes.flatten()
-
-for idx, col in enumerate(df_clean.columns):
-    axes[idx].boxplot(df_clean[col], vert=True)
-    axes[idx].set_title(col, fontsize=10)
-    axes[idx].set_ylabel('Value')
-    if outlier_counts[col] > 0:
-        axes[idx].set_facecolor('#fff3cd')  # Highlight if has outliers
-
-plt.suptitle('Outlier Detection - Box Plots for All Features', fontsize=14, y=0.995)
+# Visualize outliers with simple bar chart
+plt.figure(figsize=(10, 5))
+colors = ['red' if count > 0 else 'steelblue' for count in outlier_counts.values()]
+plt.bar(range(len(outlier_counts)), outlier_counts.values(), color=colors, alpha=0.7)
+plt.xticks(range(len(outlier_counts)), outlier_counts.keys(), rotation=90)
+plt.xlabel('Features')
+plt.ylabel('Number of Outliers')
+plt.title('Outliers Detected per Feature (IQR Method)')
+plt.grid(True, alpha=0.3, axis='y')
 plt.tight_layout()
-plt.savefig('task1plt/outlier_detection_boxplots.png', dpi=300, bbox_inches='tight')
-print("    Saved outlier detection plots to 'task1plt/outlier_detection_boxplots.png'")
+plt.savefig('task1plt/outlier_detection.png', dpi=300, bbox_inches='tight')
+print("    Saved outlier detection chart to 'task1plt/outlier_detection.png'")
 
 # Save outlier report
 outlier_report = pd.DataFrame({
@@ -164,27 +163,30 @@ print("\n    Standardization completed!")
 print(f"    Mean after scaling (should be ~0): {df_scaled.mean().mean():.6f}")
 print(f"    Std after scaling (should be ~1): {df_scaled.std().mean():.6f}")
 
-# Visualize before/after standardization
-fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+# Visualize before/after standardization using histograms
+# Pick 4 representative features for clearer visualization
+sample_features = ['Temp_Mean', 'Humidity_Mean', 'Pressure_Mean', 'Precipitation']
 
-# Before standardization
-axes[0].boxplot([df_clean[col] for col in df_clean.columns], labels=column_names)
-axes[0].set_title('Before Standardization', fontsize=12, fontweight='bold')
-axes[0].set_ylabel('Original Scale')
-axes[0].set_xlabel('Features')
-axes[0].tick_params(axis='x', rotation=90)
-axes[0].grid(True, alpha=0.3)
+fig, axes = plt.subplots(2, 4, figsize=(16, 8))
 
-# After standardization
-axes[1].boxplot([df_scaled[col] for col in df_scaled.columns], labels=column_names)
-axes[1].set_title('After Standardization', fontsize=12, fontweight='bold')
-axes[1].set_ylabel('Standardized Scale (Z-score)')
-axes[1].set_xlabel('Features')
-axes[1].tick_params(axis='x', rotation=90)
-axes[1].grid(True, alpha=0.3)
-axes[1].axhline(y=0, color='r', linestyle='--', linewidth=1, alpha=0.5, label='Mean=0')
-axes[1].legend()
+for idx, feat in enumerate(sample_features):
+    # Before standardization
+    axes[0, idx].hist(df_clean[feat], bins=30, color='steelblue', alpha=0.7, edgecolor='black')
+    axes[0, idx].set_title(f'{feat}\n(Original)', fontsize=10)
+    axes[0, idx].set_xlabel('Value')
+    axes[0, idx].set_ylabel('Frequency')
+    axes[0, idx].grid(True, alpha=0.3)
 
+    # After standardization
+    axes[1, idx].hist(df_scaled[feat], bins=30, color='green', alpha=0.7, edgecolor='black')
+    axes[1, idx].set_title(f'{feat}\n(Standardized)', fontsize=10)
+    axes[1, idx].set_xlabel('Z-score')
+    axes[1, idx].set_ylabel('Frequency')
+    axes[1, idx].axvline(x=0, color='red', linestyle='--', linewidth=2, label='Mean=0')
+    axes[1, idx].grid(True, alpha=0.3)
+    axes[1, idx].legend()
+
+plt.suptitle('Before and After Standardization (Sample Features)', fontsize=14, y=0.995)
 plt.tight_layout()
 plt.savefig('task1plt/standardization_comparison.png', dpi=300, bbox_inches='tight')
 print("    Saved standardization comparison to 'task1plt/standardization_comparison.png'")
@@ -274,40 +276,31 @@ print(f"    Variance explained by each PC:")
 for i, var in enumerate(pca_full.explained_variance_ratio_, 1):
     print(f"      PC{i}: {var:.4f} ({var*100:.2f}%)")
 
-# Visualize PCA results
-fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+# Visualize PCA with simple scree plot
+plt.figure(figsize=(10, 6))
+plt.bar(range(1, len(pca_full.explained_variance_ratio_) + 1),
+        pca_full.explained_variance_ratio_, alpha=0.7, color='steelblue',
+        label='Individual Variance')
+plt.plot(range(1, len(cumulative_variance) + 1),
+         cumulative_variance, 'ro-', linewidth=2, markersize=8, label='Cumulative Variance')
+plt.axhline(y=0.95, color='green', linestyle='--', linewidth=2, label='95% Threshold')
+plt.xlabel('Principal Component', fontsize=12)
+plt.ylabel('Explained Variance Ratio', fontsize=12)
+plt.title('PCA Scree Plot - Variance Explained by Each Component', fontsize=14)
+plt.legend(fontsize=10)
+plt.grid(True, alpha=0.3)
+plt.xticks(range(1, len(pca_full.explained_variance_ratio_) + 1))
+plt.tight_layout()
+plt.savefig('task1plt/pca_scree_plot.png', dpi=300, bbox_inches='tight')
+print("    Saved PCA scree plot to 'task1plt/pca_scree_plot.png'")
 
-# Scree plot
-axes[0].bar(range(1, len(pca_full.explained_variance_ratio_) + 1),
-            pca_full.explained_variance_ratio_, alpha=0.7, color='steelblue',
-            label='Individual')
-axes[0].plot(range(1, len(cumulative_variance) + 1),
-             cumulative_variance, 'ro-', linewidth=2, label='Cumulative')
-axes[0].axhline(y=0.95, color='g', linestyle='--', label='95% threshold')
-axes[0].set_xlabel('Principal Component')
-axes[0].set_ylabel('Explained Variance Ratio')
-axes[0].set_title('Scree Plot - PCA Explained Variance')
-axes[0].legend()
-axes[0].grid(True, alpha=0.3)
-axes[0].set_xticks(range(1, len(pca_full.explained_variance_ratio_) + 1))
-
-# Component loadings heatmap
+# Save loadings for reference
 loadings = pca_full.components_.T
 loadings_df = pd.DataFrame(
     loadings,
     columns=[f'PC{i+1}' for i in range(len(selected_features))],
     index=selected_features
 )
-
-sns.heatmap(loadings_df, annot=True, fmt='.2f', cmap='coolwarm', center=0,
-            ax=axes[1], cbar_kws={'label': 'Loading'})
-axes[1].set_title('PCA Component Loadings')
-axes[1].set_xlabel('Principal Components')
-axes[1].set_ylabel('Features')
-
-plt.tight_layout()
-plt.savefig('task1plt/pca_analysis.png', dpi=300, bbox_inches='tight')
-print("    Saved PCA analysis to 'task1plt/pca_analysis.png'")
 
 # Apply PCA transformation
 pca_transformed = pca_full.transform(df_scaled_selected.values)
@@ -354,11 +347,11 @@ print(f"     - Total variance by PC1: {pca_full.explained_variance_ratio_[0]*100
 
 print("\nGenerated Files:")
 print("  Plots:")
-print("    - task1plt/missing_data_pattern.png")
-print("    - task1plt/outlier_detection_boxplots.png")
-print("    - task1plt/standardization_comparison.png")
-print("    - task1plt/feature_selection.png")
-print("    - task1plt/pca_analysis.png")
+print("    - task1plt/missing_data.png (bar chart)")
+print("    - task1plt/outlier_detection.png (bar chart)")
+print("    - task1plt/standardization_comparison.png (histograms)")
+print("    - task1plt/feature_selection.png (bar chart)")
+print("    - task1plt/pca_scree_plot.png (scree plot)")
 print("\n  Data:")
 print("    - task1data/outlier_report.csv")
 print("    - task1data/data_standardized.csv")
